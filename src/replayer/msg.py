@@ -69,7 +69,9 @@ class MsgDB:
 
         self.url = rf"sqlite+aiosqlite:///{str(self.path)}"
         self.engine = create_async_engine(
-            self.url, connect_args={"check_same_thread": False, "timeout": 10}, echo=False
+            self.url,
+            connect_args={"check_same_thread": False, "timeout": 600},
+            echo=False,
         )
         self._started = False
         self._lock = Lock()
