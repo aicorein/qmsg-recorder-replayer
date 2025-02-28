@@ -24,6 +24,7 @@ SSL_CONTEXT.options |= ssl.OP_NO_TLSv1
 SSL_CONTEXT.options |= ssl.OP_NO_TLSv1_1
 SSL_CONTEXT.options |= ssl.OP_NO_COMPRESSION
 
+
 _origin_get_logger = logging.getLogger
 
 
@@ -102,10 +103,24 @@ async def _patch_mface(raw_dic: dict[str, Any], _: Exception) -> None:
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.96 Safari/537.36"
 }
+TCP_CONN: aiohttp.TCPConnector | None = None
+
+
+async def init_conn(logger: GenericLogger) -> None:
+    global TCP_CONN
+    TCP_CONN = aiohttp.TCPConnector(ssl_context=SSL_CONTEXT, limit=10, limit_per_host=5)
+    logger.info("aiohttp 常驻 TCP 连接器已初始化")
+
+
+@get_bot().on_stopped
+async def close_conn(logger: GenericLogger) -> None:
+    if TCP_CONN is not None and not TCP_CONN.closed:
+        await TCP_CONN.close()
+        logger.info("aiohttp 常驻 TCP 连接器已关闭")
 
 
 @asynccontextmanager
-async def async_http(
+async def ahttp(
     url: str,
     method: Literal["get", "post"],
     headers: Optional[dict] = None,
@@ -113,11 +128,9 @@ async def async_http(
     data: Optional[dict] = None,
     json: Optional[dict] = None,
     proxy: str | None = None,
-    verify_ssl: bool = True,
 ) -> AsyncGenerator[aiohttp.ClientResponse, None]:
     async with aiohttp.ClientSession(
-        connector=aiohttp.TCPConnector(verify_ssl=verify_ssl, ssl_context=SSL_CONTEXT),
-        headers=headers,
+        connector=TCP_CONN, headers=headers, connector_owner=False
     ) as http_session:
         kwargs: dict[str, Any] = {}
         if proxy:
@@ -137,14 +150,12 @@ async def async_http(
 class BinaryDataManager:
     def __init__(self, root_path: str | Path):
         self.root = (
-            root_path.resolve()
-            if isinstance(root_path, Path)
-            else Path(root_path).resolve()
+            root_path.resolve() if isinstance(root_path, Path) else Path(root_path).resolve()
         )
         self.default_dir = self.root / "none"
         os.makedirs(str(self.default_dir), exist_ok=True)
 
-        self.retry_delays = (1, 2, 4, 8, 16, 32, 64)
+        self.retry_delays = tuple(1 << i for i in range(10))
 
     @property
     def logger(self) -> GenericLogger:
@@ -154,7 +165,7 @@ class BinaryDataManager:
         md5 = ""
         try:
             for delay in self.retry_delays:
-                async with async_http(url, "get", headers=HEADERS) as resp:
+                async with ahttp(url, "get", headers=HEADERS) as resp:
                     if resp.status != 200:
                         await asyncio.sleep(delay)
                         continue

@@ -8,7 +8,7 @@ from melobot.protocols.onebot.v11 import GroupMessageEvent, on_message
 
 from .msg import MsgDB, SegmentTag
 from .process import MessageStore
-from .utils import get_id
+from .utils import get_id, init_conn
 
 REPLAYER = PluginPlanner("1.0.0")
 
@@ -20,10 +20,15 @@ class DataBases:
 MSG_STORE = MessageStore(DataBases.msg_db)
 
 
-@REPLAYER.on(PluginLifeSpan.INITED)
 async def start_db(logger: GenericLogger) -> None:
     await DataBases.msg_db.start()
     logger.info("所有数据库已完成初始化")
+
+
+@REPLAYER.on(PluginLifeSpan.INITED)
+async def prepare(logger: GenericLogger) -> None:
+    await init_conn(logger)
+    await start_db(logger)
 
 
 @REPLAYER.use
