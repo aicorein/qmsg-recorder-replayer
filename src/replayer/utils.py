@@ -10,7 +10,7 @@ from typing import Any, AsyncGenerator, Literal, Optional, TypedDict, cast
 
 import aiohttp
 from melobot import get_bot
-from melobot.log import GenericLogger, get_logger
+from melobot.log import GenericLogger, Logger, LogLevel, get_logger
 from melobot.protocols.onebot.v11 import Adapter, Segment
 from melobot.utils.common import _DEFAULT_ID_WORKER
 
@@ -31,7 +31,13 @@ def _patch_get_logger(name: str | None = None) -> logging.Logger:
     if name != "sqlalchemy.engine.Engine":
         return _origin_get_logger(name)
     else:
-        return get_logger()
+        return Logger(
+            "sqlalchemy_engine",
+            LogLevel.INFO,
+            file_level=LogLevel.INFO,
+            to_dir="./logs",
+            two_stream=True,
+        )
 
 
 logging.getLogger = _patch_get_logger  # type: ignore

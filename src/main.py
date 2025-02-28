@@ -11,14 +11,8 @@ from melobot.protocols.onebot.v11 import ForwardWebSocketIO, OneBotV11Protocol
 
 if __name__ == "__main__":
     bot = Bot(
-        "qq-monitor",
-        logger=Logger(
-            "qq-monitor",
-            LogLevel.INFO,
-            file_level=LogLevel.INFO,
-            to_dir="../logs",
-            two_stream=True,
-        ),
+        "main",
+        logger=Logger("main", LogLevel.INFO, to_dir="../logs", two_stream=True),
     )
     bot.add_protocol(OneBotV11Protocol(ForwardWebSocketIO("ws://127.0.0.1:12359")))
     bot.load_plugin("echo")
