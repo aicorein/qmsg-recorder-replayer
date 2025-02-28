@@ -8,7 +8,7 @@ from melobot.bot import get_bot
 from melobot.log import GenericLogger, LogLevel, get_logger
 from melobot.protocols.onebot.v11 import Adapter, EchoRequireCtx, Segment
 from melobot.protocols.onebot.v11.adapter import segment as se
-from melobot.utils import unfold_ctx
+from melobot.utils import semaphore, unfold_ctx
 
 from .msg import MsgDB, Record, SegmentHandle, SegmentTag
 from .utils import (
@@ -77,10 +77,16 @@ class MessageStore:
             self.logger.exception("存储消息段时出现异常")
             self.logger.generic_obj(
                 "异常点局部变量",
-                {"tag": tag, "segs": segs, "depth": depth},
+                {
+                    "tag": tag,
+                    "segs": tuple(s.to_dict() for s in segs),
+                    "depth": depth,
+                    "recs": tuple(d.result() for d in dones) if "dones" in locals() else (),
+                },
                 level=LogLevel.ERROR,
             )
 
+    @semaphore(value=8)
     async def commit(self, recs: Iterable[Record]) -> None:
         async with self.db.session() as session:
             try:
@@ -179,9 +185,7 @@ class SegmentNormalizer:
                 text_list.append("\u0000")
                 face_list.append(seg.data["id"])
             else:
-                text_list.append(
-                    cast(se.TextSegment, seg).data["text"].replace("\u0000", "")
-                )
+                text_list.append(cast(se.TextSegment, seg).data["text"].replace("\u0000", ""))
         return FaceTextSegment(text="".join(text_list), faces=repr(face_list))  # type: ignore
 
     @classmethod

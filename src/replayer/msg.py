@@ -70,8 +70,8 @@ class MsgDB:
         self.url = rf"sqlite+aiosqlite:///{str(self.path)}"
         self.engine = create_async_engine(
             self.url,
-            connect_args={"check_same_thread": False, "timeout": 600},
-            echo=False,
+            connect_args={"check_same_thread": False, "timeout": 1200},
+            echo=True,
         )
         self._started = False
         self._lock = Lock()
@@ -109,9 +109,7 @@ class MsgDB:
                 self._started = True
 
     @asynccontextmanager
-    async def session(
-        self, auto_flush: bool = False
-    ) -> AsyncGenerator[AsyncSession, None]:
+    async def session(self, auto_flush: bool = False) -> AsyncGenerator[AsyncSession, None]:
         if not self._started:
             raise RuntimeError(f"{self} has not start engine")
 

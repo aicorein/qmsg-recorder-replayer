@@ -36,7 +36,7 @@ def _patch_get_logger(name: str | None = None) -> logging.Logger:
             "sqlalchemy_engine",
             LogLevel.INFO,
             file_level=LogLevel.INFO,
-            to_dir="./logs",
+            to_dir="./replayer/logs",
             two_stream=True,
         )
 
@@ -88,6 +88,7 @@ MfaceSegment = Segment.add_type(Literal[MFACE_TYPE], _MfaceData)  # type: ignore
 
 _adapter = cast(Adapter, get_bot().get_adapter(Adapter))
 assert _adapter is not None, "初始化工具模块时，无法获取到 ob11 适配器"
+_bot = get_bot()
 
 
 @_adapter.when_validate_error("event")
@@ -112,7 +113,7 @@ async def init_conn(logger: GenericLogger) -> None:
     logger.info("aiohttp 常驻 TCP 连接器已初始化")
 
 
-@get_bot().on_stopped
+@_bot.on_stopped
 async def close_conn(logger: GenericLogger) -> None:
     if TCP_CONN is not None and not TCP_CONN.closed:
         await TCP_CONN.close()
