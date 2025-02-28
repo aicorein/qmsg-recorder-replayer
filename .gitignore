@@ -162,6 +162,7 @@ cython_debug/
 .idea/
 
 .vscode/
+.python-version
 lagrange
 logs/
 src/replayer/databases/
