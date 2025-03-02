@@ -166,29 +166,41 @@ class BinaryDataManager:
         md5 = ""
         try:
             for delay in self.retry_delays:
-                async with ahttp(url, "get", headers=HEADERS) as resp:
-                    if resp.status != 200:
-                        await asyncio.sleep(delay)
-                        continue
-                    content = await resp.content.read()
-                    assert len(content) > 0, "获取的数据为空字节"
+                try:
+                    async with ahttp(url, "get", headers=HEADERS) as resp:
+                        if resp.status != 200:
+                            self.logger.warning(
+                                f"请求状态码错误 {resp.status}，时间：{timestamp}，源：{url}，"
+                                f"内容：{await resp.content.read()}"
+                            )
+                            await asyncio.sleep(delay)
+                            continue
 
-                    if timestamp:
-                        date = datetime.fromtimestamp(timestamp)
-                        img_dir = self.root / str(date.year) / str(date.month)
-                        os.makedirs(str(img_dir), exist_ok=True)
-                    else:
-                        img_dir = self.default_dir
+                        content = await resp.content.read()
+                        assert len(content) > 0, "获取的数据为空字节"
 
-                    md5 = hashlib.md5(content).hexdigest()
-                    img_path = img_dir / f"{md5}.bin"
-                    if not img_path.exists():
-                        with open(img_path, "wb") as fp:
-                            fp.write(content)
-                        self.logger.debug(f"二进制数据已存储，源：{url}")
-                    else:
-                        self.logger.debug(f"二进制数据已存在，跳过存储，源：{url}")
-                    break
+                        if timestamp:
+                            date = datetime.fromtimestamp(timestamp)
+                            img_dir = self.root / str(date.year) / str(date.month)
+                            os.makedirs(str(img_dir), exist_ok=True)
+                        else:
+                            img_dir = self.default_dir
+
+                        md5 = hashlib.md5(content).hexdigest()
+                        img_path = img_dir / f"{md5}.bin"
+                        if not img_path.exists():
+                            with open(img_path, "wb") as fp:
+                                fp.write(content)
+                            self.logger.debug(f"二进制数据已存储，源：{url}")
+                        else:
+                            self.logger.debug(f"二进制数据已存在，跳过存储，源：{url}")
+                        break
+
+                except aiohttp.ClientConnectorDNSError:
+                    if delay == self.retry_delays[-1]:
+                        raise
+                    continue
+
         except Exception:
             self.logger.exception(f"存储数据时发生错误，时间：{timestamp}，源：{url}")
         return md5
