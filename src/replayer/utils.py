@@ -200,6 +200,8 @@ class BinaryDataManager:
                     if delay == self.retry_delays[-1]:
                         raise
                     continue
+            else:
+                self.logger.warning(f"请求多次失败已放弃，时间：{timestamp}，源：{url}")
 
         except Exception:
             self.logger.exception(f"存储数据时发生错误，时间：{timestamp}，源：{url}")
