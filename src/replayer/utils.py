@@ -149,6 +149,8 @@ async def ahttp(
 
 
 class BinaryDataManager:
+    APPID_NOT_MATCH = b'{"retcode":-5503023,"retmsg":"appid is not match","retryflag":1}'
+
     def __init__(self, root_path: str | Path):
         self.root = (
             root_path.resolve() if isinstance(root_path, Path) else Path(root_path).resolve()
@@ -165,19 +167,23 @@ class BinaryDataManager:
     async def store(self, url: str, timestamp: int | None) -> str:
         md5 = ""
         try:
-            for delay in self.retry_delays:
+            for idx, delay in enumerate(self.retry_delays, start=1):
                 try:
                     async with ahttp(url, "get", headers=HEADERS) as resp:
-                        if resp.status != 200:
-                            self.logger.warning(
-                                f"请求状态码错误 {resp.status}，时间：{timestamp}，源：{url}，"
-                                f"内容：{await resp.content.read()}"
-                            )
+                        content = await resp.content.read()
+                        assert len(content) > 0, "获取的数据为空字节"
+
+                        if resp.status == 400 and content == self.APPID_NOT_MATCH:
                             await asyncio.sleep(delay)
                             continue
 
-                        content = await resp.content.read()
-                        assert len(content) > 0, "获取的数据为空字节"
+                        if resp.status != 200:
+                            self.logger.warning(
+                                f"{idx} | 请求状态码错误 {resp.status}，"
+                                f"时间：{timestamp}，源：{url}，内容：{content}"
+                            )
+                            await asyncio.sleep(delay)
+                            continue
 
                         if timestamp:
                             date = datetime.fromtimestamp(timestamp)
@@ -197,15 +203,16 @@ class BinaryDataManager:
                         break
 
                 except aiohttp.ClientConnectorDNSError:
-                    if delay == self.retry_delays[-1]:
-                        raise
-                    continue
-            else:
-                self.logger.warning(f"请求多次失败已放弃，时间：{timestamp}，源：{url}")
+                    await asyncio.sleep(delay)
 
-        except Exception:
-            self.logger.exception(f"存储数据时发生错误，时间：{timestamp}，源：{url}")
-        return md5
+                except Exception:
+                    self.logger.exception(f"{idx} | 存储数据时发生错误，时间：{timestamp}，源：{url}")
+                    await asyncio.sleep(delay)
+
+            else:
+                self.logger.error(f"请求多次失败已放弃，时间：{timestamp}，源：{url}")
+        finally:
+            return md5
 
 
 class ImageManager(BinaryDataManager):
