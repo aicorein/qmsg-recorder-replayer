@@ -150,6 +150,7 @@ async def ahttp(
 
 class BinaryDataManager:
     APPID_NOT_MATCH = b'{"retcode":-5503023,"retmsg":"appid is not match","retryflag":1}'
+    NOT_ENOUGH_DATA = "ContentLengthError: 400, message='Not enough data for satisfy content length header.'"
 
     def __init__(self, root_path: str | Path):
         self.root = (
@@ -205,12 +206,20 @@ class BinaryDataManager:
                 except aiohttp.ClientConnectorDNSError:
                     await asyncio.sleep(delay)
 
+                except aiohttp.ClientPayloadError as e:
+                    if self.NOT_ENOUGH_DATA in str(e):
+                        await asyncio.sleep(delay)
+                    else:
+                        raise
+
                 except Exception:
                     self.logger.exception(f"{idx} | 存储数据时发生错误，时间：{timestamp}，源：{url}")
                     await asyncio.sleep(delay)
 
             else:
-                self.logger.error(f"请求多次失败已放弃，时间：{timestamp}，源：{url}")
+                if timestamp is not None:
+                    self.logger.error(f"请求多次失败已放弃，时间：{timestamp}，源：{url}")
+
         finally:
             return md5
 
